@@ -22,7 +22,7 @@
 MStatus initializePlugin(MObject obj)
 {
     MStatus   status;
-    MFnPlugin plugin(obj, PLUGIN_COMPANY, FT_MAYA_VERSION_VERSION, "Any");
+    MFnPlugin plugin(obj, PLUGIN_COMPANY, FT_MAYA_VERSION_STR, "Any");
 
     status = plugin.registerFileTranslator(AssetTranslatorName, NULL, FMAssetTranslator::creator, NULL, NULL, true);
     status = plugin.registerFileTranslator(BundleTranslatorName, NULL, FMBundleTranslator::creator, NULL, NULL, true);

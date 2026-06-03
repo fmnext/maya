@@ -930,7 +930,7 @@ FMMainWindow::FMMainWindow(QWidget* parent)
                     about_win->resize(QSize(FMQtWindow::dpiScale(400), FMQtWindow::dpiScale(360)));
                     about_win->setMaximumSize(QSize(FMQtWindow::dpiScale(400), FMQtWindow::dpiScale(360)));
                     about_win->setWindowFlags(Qt::Window | Qt::WindowCloseButtonHint);
-                    about_win->setSuperiorText("Forzatech Importer for Autodesk " + QString(FT_MAYA_SCM_BRANCH) + " v" + QString(FT_MAYA_VERSION_VERSION) +
+                    about_win->setSuperiorText("Forzatech Importer for Autodesk " + QString(FT_MAYA_SCM_BRANCH) + " v" + QString(FT_MAYA_VERSION_STR) +
                         "\n"
                         "Maintained by Apex (apex.wexfy.com)");
                 }
@@ -1401,7 +1401,7 @@ FMMainWindow::FMMainWindow(QWidget* parent)
     // Plugin Version
     {
         root_items[8]->setText(1, "Version");
-        root_items[8]->setText(2, QString(FT_MAYA_VERSION_VERSION));
+        root_items[8]->setText(2, QString(FT_MAYA_VERSION_STR));
     }
 
     ui->treeWidget->setAnimated(false);

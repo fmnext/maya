@@ -71,7 +71,7 @@
 #define FT_MAYA_MINOR_VERSION    7
 #define FT_MAYA_PATCH_VERSION    0
 #define FT_MAYA_BUILD_NUMBER     0
-#define FT_MAYA_VERSION_VERSION  "2.7.0"
+#define FT_MAYA_VERSION_STR      "2.7.0"
 #define FT_MAYA_VERSION_NUMBER   270
 #define FT_MAYA_SCM_BRANCH       "Maya"
 #define FT_MAYA_SCM_TAGS         "release version-2"
