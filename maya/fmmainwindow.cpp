@@ -1671,6 +1671,8 @@ void FMMainWindow::setModel(const std::string& path)
                     }
                 }
             }
+
+            tires_container.release();
         }
 
         // media/_library and media/cars/_library
@@ -1782,6 +1784,8 @@ void FMMainWindow::setModel(const std::string& path)
                             }
                         }
 
+                        thumbnail_container.release();
+
                         continue;
                     }
 
@@ -1809,6 +1813,8 @@ void FMMainWindow::setModel(const std::string& path)
                                 scene_items[1]->setToolTip(2, m_records->Thumbnail.c_str());
                             }
                         }
+
+                        thumbnail_container.release();
                     }
                 }
 
@@ -3232,6 +3238,13 @@ void FMMainWindow::exportManufacturerColors(const QString& path)
     QJsonArray document_entries{};
     QJsonObject root_json_object{};
 
+    QJsonObject metadata_object;
+    metadata_object.insert("version", 1);
+    metadata_object.insert("type", "ManufacturerColors");
+    metadata_object.insert("generator", "ForzaTech for Autodesk Maya");
+
+    root_json_object.insert("metadata", metadata_object);
+
     if (m_colors != nullptr) {
 
         for (auto it = m_colors->ManufacturerColors.begin(); it != m_colors->ManufacturerColors.end(); ++it)
@@ -3249,7 +3262,6 @@ void FMMainWindow::exportManufacturerColors(const QString& path)
 
                 QJsonObject color_object;
 
-                color_object.insert("Path", QString(colors->path.c_str()));
                 color_object.insert("Index_Mask", QString("%0").arg(colors->material_index_mask.value()));
                 color_object.insert("Path", QString(colors->path.c_str()));
                 color_object.insert("Preview_Color", QJsonArray({ colors->preview_color.x, colors->preview_color.y, colors->preview_color.z }));
