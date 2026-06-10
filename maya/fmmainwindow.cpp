@@ -3281,7 +3281,7 @@ void FMMainWindow::exportManufacturerColors(const QString& path)
                     }
                 }
 
-                array.insert(idx, color_object);
+                array.push_back(color_object);
             }
 
             json_object.insert("Data", array);
@@ -3323,7 +3323,7 @@ QJsonArray FMMainWindow::getShaderParametersArray(std::shared_ptr<fmnext::Bundle
             object.insert(QString("Type"), QString("Vector"));
             object.insert(QString("Data"), jsonArray);
 
-            array.insert(itx, object);
+            array.push_back(object);
 
             break;
         }
@@ -3341,7 +3341,7 @@ QJsonArray FMMainWindow::getShaderParametersArray(std::shared_ptr<fmnext::Bundle
             object.insert(QString("Type"), QString("Color"));
             object.insert(QString("Data"), jsonArray);
 
-            array.insert(itx, object);
+            array.push_back(object);
 
             break;
         }
@@ -3357,7 +3357,7 @@ QJsonArray FMMainWindow::getShaderParametersArray(std::shared_ptr<fmnext::Bundle
             object.insert(QString("Type"), QString("Float"));
             object.insert(QString("Data"), result);
 
-            array.insert(itx, object);
+            array.push_back(object);
 
             break;
         }
@@ -3375,7 +3375,7 @@ QJsonArray FMMainWindow::getShaderParametersArray(std::shared_ptr<fmnext::Bundle
             object.insert(QString("Type"), QString("Bool"));
             object.insert(QString("Data"), jsonValue);
 
-            array.insert(itx, object);
+            array.push_back(object);
 
             break;
         }
@@ -3391,7 +3391,7 @@ QJsonArray FMMainWindow::getShaderParametersArray(std::shared_ptr<fmnext::Bundle
             object.insert(QString("Type"), QString("Int"));
             object.insert(QString("Data"), result);
 
-            array.insert(itx, object);
+            array.push_back(object);
 
             break;
         }
@@ -3406,7 +3406,7 @@ QJsonArray FMMainWindow::getShaderParametersArray(std::shared_ptr<fmnext::Bundle
             object.insert(QString("Type"), QString("Swizzle"));
             object.insert(QString("Data"), QString("No suitable data parser defined."));
 
-            array.insert(itx, object);
+            array.push_back(object);
 
             break;
         }
@@ -3421,7 +3421,7 @@ QJsonArray FMMainWindow::getShaderParametersArray(std::shared_ptr<fmnext::Bundle
             object.insert(QString("Type"), QString("Texture2D"));
             object.insert(QString("Data"), QString::fromStdString(result));
 
-            array.insert(itx, object);
+            array.push_back(object);
 
             break;
         }
@@ -3439,7 +3439,7 @@ QJsonArray FMMainWindow::getShaderParametersArray(std::shared_ptr<fmnext::Bundle
             object.insert(QString("Type"), QString("Vector2"));
             object.insert(QString("Data"), jsonArray);
 
-            array.insert(itx, object);
+            array.push_back(object);
 
             break;
         }
