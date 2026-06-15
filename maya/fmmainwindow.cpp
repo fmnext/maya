@@ -3541,7 +3541,7 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
             lodFnDagNode.setName(lod_group_name.c_str());
 
 
-            for (auto& data : list_items)
+            for (const auto& data : list_items)
             {
                 if (data.item->parent()->data(0, Qt::DisplayRole).toInt() == upgrade_level->itemData(upgrade_level->currentIndex(), Qt::UserRole).toInt() ||
                     data.item->parent()->text(0).isEmpty() == true)
@@ -3739,7 +3739,7 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
                                     fnDagNode.setName(wheel_name.c_str());
                                 }
                                 /*
-                                for (auto& mesh : resolver.meshes)
+                                for (const auto& mesh : resolver.meshes)
                                 {
                                     MObject obj = MObject::kNullObj;
                                     DCCManager::createMesh(mesh.vertices, mesh.indices, mesh.normals, mesh.uvs, obj, mesh.name);
@@ -3747,12 +3747,12 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
                                     fnDagNode.addChild(obj);
                                 }
                                 */
-                                for (auto& mesh : resolver.GetMeshes())
+                                for (const auto& mesh : resolver.GetMeshes())
                                 {
                                     MObject obj = MObject::kNullObj;
 
                                     MObject material_obj = MObject::kNullObj;
-                                    std::string mesh_name{};
+                                    std::string mesh_name(mesh.name);
 
                                     auto material = std::find_if(data.bundle->MaterialInstanceBundles.begin(), data.bundle->MaterialInstanceBundles.end(), [&](auto& mtl) {
                                         return std::any_cast<int32_t>(mtl.metadata["Id"]) == mesh.material_index;
@@ -3760,7 +3760,6 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
 
                                     if (material != std::end(data.bundle->MaterialInstanceBundles))
                                     {
-                                        mesh_name += mesh.name;
                                         mesh_name += "_";
                                         mesh_name += std::any_cast<std::string>(material->metadata["Name"]);
                                     }
@@ -3772,7 +3771,7 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
                                         material_obj = DCCManager::createMaterialfromMemory(std::any_cast<std::string>(material->metadata["Name"]), material_data.instace);
                                     }
 
-                                    obj = DCCManager::createMesh(mesh.vertices, mesh.indices, mesh.normals, mesh.uvs, mesh_name, geometry_type->currentIndex());
+                                    obj = DCCManager::createMesh(&mesh, mesh_name, geometry_type->currentIndex());
                                     DCCManager::setNodeTransformation(obj, mesh.matrix);
 
                                     if (material_obj != MObject::kNullObj)
@@ -3809,12 +3808,12 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
                                 fnDagNode.setName(wheel_name.c_str());
                             }
 
-                            for (auto& mesh : resolver.GetMeshes())
+                            for (const auto& mesh : resolver.GetMeshes())
                             {
                                 MObject obj = MObject::kNullObj;
 
                                 MObject material_obj = MObject::kNullObj;
-                                std::string mesh_name{};
+                                std::string mesh_name(mesh.name);
 
                                 auto material = std::find_if(data.bundle->MaterialInstanceBundles.begin(), data.bundle->MaterialInstanceBundles.end(), [&](auto& mtl) {
                                     return std::any_cast<int32_t>(mtl.metadata["Id"]) == mesh.material_index;
@@ -3822,7 +3821,6 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
 
                                 if (material != std::end(data.bundle->MaterialInstanceBundles))
                                 {
-                                    mesh_name += mesh.name;
                                     mesh_name += "_";
                                     mesh_name += std::any_cast<std::string>(material->metadata["Name"]);
                                 }
@@ -3835,7 +3833,7 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
                                     material_obj = DCCManager::createMaterialfromMemory(std::any_cast<std::string>(material->metadata["Name"]), material_data.instace);
                                 }
 
-                                obj = DCCManager::createMesh(mesh.vertices, mesh.indices, mesh.normals, mesh.uvs, mesh_name, geometry_type->currentIndex());
+                                obj = DCCManager::createMesh(&mesh, mesh_name, geometry_type->currentIndex());
                                 DCCManager::setNodeTransformation(obj, mesh.matrix);
 
                                 if (material_obj != MObject::kNullObj)
@@ -3881,12 +3879,12 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
                             }
 
 
-                            for (auto& mesh : resolver.GetMeshes())
+                            for (const auto& mesh : resolver.GetMeshes())
                             {
                                 MObject obj = MObject::kNullObj;
 
                                 MObject material_obj = MObject::kNullObj;
-                                std::string mesh_name{};
+                                std::string mesh_name(mesh.name);
 
                                 auto material = std::find_if(data.bundle->MaterialInstanceBundles.begin(), data.bundle->MaterialInstanceBundles.end(), [&](auto& mtl) {
                                     return std::any_cast<int32_t>(mtl.metadata["Id"]) == mesh.material_index;
@@ -3894,7 +3892,6 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
 
                                 if (material != std::end(data.bundle->MaterialInstanceBundles))
                                 {
-                                    mesh_name += mesh.name;
                                     mesh_name += "_";
                                     mesh_name += std::any_cast<std::string>(material->metadata["Name"]);
                                 }
@@ -3907,7 +3904,7 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
                                     material_obj = DCCManager::createMaterialfromMemory(std::any_cast<std::string>(material->metadata["Name"]), material_data.instace);
                                 }
 
-                                obj = DCCManager::createMesh(mesh.vertices, mesh.indices, mesh.normals, mesh.uvs, mesh_name, geometry_type->currentIndex());
+                                obj = DCCManager::createMesh(&mesh, mesh_name, geometry_type->currentIndex());
                                 DCCManager::setNodeTransformation(obj, mesh.matrix);
 
                                 if (material_obj != MObject::kNullObj)
@@ -3943,12 +3940,12 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
 
                         auto resolver = fmnext::MeshResolver(data.bundle, current_lod->currentIndex(), static_cast<fmnext::GeometryType>(geometry_type->currentIndex()));
 
-                        for (auto& mesh : resolver.GetMeshes())
+                        for (const auto& mesh : resolver.GetMeshes())
                         {
                             MObject obj = MObject::kNullObj;
 
                             MObject material_obj = MObject::kNullObj;
-                            std::string mesh_name{};
+                            std::string mesh_name(mesh.name);
 
                             auto material = std::find_if(data.bundle->MaterialInstanceBundles.begin(), data.bundle->MaterialInstanceBundles.end(), [&](auto& mtl) {
                                 return std::any_cast<int32_t>(mtl.metadata["Id"]) == mesh.material_index;
@@ -3956,7 +3953,6 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
 
                             if (material != std::end(data.bundle->MaterialInstanceBundles))
                             {
-                                mesh_name += mesh.name;
                                 mesh_name += "_";
                                 mesh_name += std::any_cast<std::string>(material->metadata["Name"]);
                             }
@@ -3969,7 +3965,7 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
                                 material_obj = DCCManager::createMaterialfromMemory(std::any_cast<std::string>(material->metadata["Name"]), material_data.instace);
                             }
 
-                            obj = DCCManager::createMesh(mesh.vertices, mesh.indices, mesh.normals, mesh.uvs, mesh_name, geometry_type->currentIndex());
+                            obj = DCCManager::createMesh(&mesh, mesh_name, geometry_type->currentIndex());
                             DCCManager::setNodeTransformation(obj, mesh.matrix);
 
                             if (material_obj != MObject::kNullObj)
@@ -4009,12 +4005,12 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
 
                         auto resolver = fmnext::MeshResolver(data.bundle, current_lod->currentIndex(), static_cast<fmnext::GeometryType>(geometry_type->currentIndex()));
 
-                        for (auto& mesh : resolver.GetMeshes())
+                        for (const auto& mesh : resolver.GetMeshes())
                         {
                             MObject obj = MObject::kNullObj;
 
                             MObject material_obj = MObject::kNullObj;
-                            std::string mesh_name{};
+                            std::string mesh_name(mesh.name);
 
                             auto material = std::find_if(data.bundle->MaterialInstanceBundles.begin(), data.bundle->MaterialInstanceBundles.end(), [&](auto& mtl) {
                                 return std::any_cast<int32_t>(mtl.metadata["Id"]) == mesh.material_index;
@@ -4022,7 +4018,6 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
 
                             if (material != std::end(data.bundle->MaterialInstanceBundles))
                             {
-                                mesh_name += mesh.name;
                                 mesh_name += "_";
                                 mesh_name += std::any_cast<std::string>(material->metadata["Name"]);
                             }
@@ -4035,7 +4030,7 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
                                 material_obj = DCCManager::createMaterialfromMemory(std::any_cast<std::string>(material->metadata["Name"]), material_data.instace);
                             }
 
-                            obj = DCCManager::createMesh(mesh.vertices, mesh.indices, mesh.normals, mesh.uvs, mesh_name, geometry_type->currentIndex());
+                            obj = DCCManager::createMesh(&mesh, mesh_name, geometry_type->currentIndex());
                             DCCManager::setNodeTransformation(obj, mesh.matrix);
 
                             if (material_obj != MObject::kNullObj)
@@ -4105,12 +4100,12 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
 
                         auto resolver = fmnext::MeshResolver(data.bundle, current_lod->currentIndex(), static_cast<fmnext::GeometryType>(geometry_type->currentIndex()));
 
-                        for (auto& mesh : resolver.GetMeshes())
+                        for (const auto& mesh : resolver.GetMeshes())
                         {
                             MObject obj = MObject::kNullObj;
 
                             MObject material_obj = MObject::kNullObj;
-                            std::string mesh_name{};
+                            std::string mesh_name(mesh.name);
 
                             auto material = std::find_if(data.bundle->MaterialInstanceBundles.begin(), data.bundle->MaterialInstanceBundles.end(), [&](auto& mtl) {
                                 return std::any_cast<int32_t>(mtl.metadata["Id"]) == mesh.material_index;
@@ -4118,7 +4113,6 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
 
                             if (material != std::end(data.bundle->MaterialInstanceBundles))
                             {
-                                mesh_name += mesh.name;
                                 mesh_name += "_";
                                 mesh_name += std::any_cast<std::string>(material->metadata["Name"]);
                             }
@@ -4132,7 +4126,7 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
                             }
 
 
-                            obj = DCCManager::createMesh(mesh.vertices, mesh.indices, mesh.normals, mesh.uvs, mesh_name, geometry_type->currentIndex());
+                            obj = DCCManager::createMesh(&mesh, mesh_name, geometry_type->currentIndex());
                             DCCManager::setNodeTransformation(obj, mesh.matrix);
 
                             if (material_obj != MObject::kNullObj)
@@ -4175,12 +4169,12 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
 
 
 
-                        for (auto& mesh : resolver.GetMeshes())
+                        for (const auto& mesh : resolver.GetMeshes())
                         {
                             MObject obj = MObject::kNullObj;
 
                             MObject material_obj = MObject::kNullObj;
-                            std::string mesh_name{};
+                            std::string mesh_name(mesh.name);
                             std::string material_instance_name{};
 
                             auto material = std::find_if(data.bundle->MaterialInstanceBundles.begin(), data.bundle->MaterialInstanceBundles.end(), [&](auto& mtl) {
@@ -4189,7 +4183,6 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
 
                             if (material != std::end(data.bundle->MaterialInstanceBundles))
                             {
-                                mesh_name += mesh.name;
                                 mesh_name += "_";
                                 mesh_name += std::any_cast<std::string>(material->metadata["Name"]);
                             }
@@ -4250,7 +4243,7 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
                                 }
                             }
 
-                            obj = DCCManager::createMesh(mesh.vertices, mesh.indices, mesh.normals, mesh.uvs, mesh_name, geometry_type->currentIndex());
+                            obj = DCCManager::createMesh(&mesh, mesh_name, geometry_type->currentIndex());
                             DCCManager::setNodeTransformation(obj, mesh.matrix);
 
                             if (material_obj != MObject::kNullObj)
@@ -4395,7 +4388,7 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
                     MObject obj = MObject::kNullObj;
 
                     MObject material_obj = MObject::kNullObj;
-                    std::string mesh_name;
+                    std::string mesh_name(mesh.name);
 
                     auto material = std::find_if(data.bundle->MaterialInstanceBundles.begin(), data.bundle->MaterialInstanceBundles.end(), [&](auto& mtl) {
                         return std::any_cast<int32_t>(mtl.metadata["Id"]) == mesh.material_index;
@@ -4403,7 +4396,6 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
 
                     if (material != std::end(data.bundle->MaterialInstanceBundles))
                     {
-                        mesh_name += mesh.name;
                         mesh_name += "_";
                         mesh_name += std::any_cast<std::string>(material->metadata["Name"]);
                     }
@@ -4415,7 +4407,7 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
                         material_obj = DCCManager::createMaterialfromMemory(std::any_cast<std::string>(material->metadata["Name"]), material_data.instace);
                     }
 
-                    obj = DCCManager::createMesh(mesh.vertices, mesh.indices, mesh.normals, mesh.uvs, mesh_name, geometry_type->currentIndex());
+                    obj = DCCManager::createMesh(&mesh, mesh_name, geometry_type->currentIndex());
                     DCCManager::setNodeTransformation(obj, mesh.matrix);
 
                     if (material_obj != MObject::kNullObj)

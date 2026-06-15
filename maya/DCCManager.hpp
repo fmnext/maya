@@ -282,6 +282,143 @@ public:
         return obj;
     }
 
+    static MObject createMesh(const fmnext::Mesh* mesh, const std::string& Name, bool useQuads)
+    {
+        MStatus status;
+
+        MFnMesh meshFn;
+        MFnDependencyNode depNodeFn;
+        MFloatPointArray vertexArray;
+        MVectorArray normalsArray;
+        MIntArray polygonCounts, polygonConnects;
+        MIntArray uvCounts, uvIds;
+        MIntArray vertexList;
+        MColorArray vColors;
+
+        int geometry = (useQuads) ? 4 : 3;
+        int numVertices = static_cast<int>(mesh->vertices.size());
+        int numIndices = static_cast<int>(mesh->indices.size());
+        int numPolygons = static_cast<int>(numIndices / geometry);
+
+        // Vertices
+        vertexArray.setLength(numVertices);
+
+        // Normals
+        normalsArray.setLength(numVertices);
+
+        // Vertex List
+        vertexList.setLength(numVertices);
+
+        for (int i = 0; i < numVertices; ++i)
+        {
+            vertexArray.set(MFloatPoint(mesh->vertices[i].x, mesh->vertices[i].z, mesh->vertices[i].y), i);
+            normalsArray.set(MVector(mesh->normals[i].x, mesh->normals[i].z, mesh->normals[i].y), i);
+            vertexList.set(i, i);
+        }
+
+        for (int i = 0; i < numIndices; i += geometry)
+        {
+            int v0 = mesh->indices[i + 0];
+            int v1 = mesh->indices[i + 1];
+            int v2 = mesh->indices[i + 2];
+            int v3 = (geometry == 4) ? mesh->indices[i + 3] : 0xffffffff;
+
+            polygonConnects.append(v0);
+            polygonConnects.append(v1);
+            polygonConnects.append(v2);
+
+            uvIds.append(v0);
+            uvIds.append(v1);
+            uvIds.append(v2);
+
+            switch (v3)
+            {
+            case 0xffffffff:
+            {
+                polygonCounts.append(3);
+                uvCounts.append(3);
+                break;
+            }
+            default:
+            {
+                polygonConnects.append(v3);
+                uvIds.append(v3);
+
+                polygonCounts.append(4);
+                uvCounts.append(4);
+                break;
+            }
+            }
+        }
+
+        std::vector<MFloatArray> uArray(mesh->uvs.size());
+        std::vector<MFloatArray> vArray(mesh->uvs.size());
+
+        for (size_t id = 0; id < mesh->uvs.size(); ++id)
+        {
+            // UVs Set {ID}
+            if (!mesh->uvs[id].empty())
+            {
+                uArray[id].setLength((int)mesh->uvs[id].size());
+                vArray[id].setLength((int)mesh->uvs[id].size());
+
+                for (int i = 0; i < mesh->uvs[id].size(); ++i)
+                {
+                    uArray[id].set(mesh->uvs[id][i].x, i);
+                    vArray[id].set(1 - mesh->uvs[id][i].y, i);
+                }
+            }
+        }
+
+        MObject obj = meshFn.create(numVertices, numPolygons, vertexArray, polygonCounts, polygonConnects);
+
+        MStatus normalsetstatus = meshFn.setVertexNormals(normalsArray, vertexList, MSpace::kObject);
+
+        // Get the current UV set name
+        MStringArray uvSetsNames;
+        meshFn.getUVSetNames(uvSetsNames);
+        MString uvSetName = uvSetsNames[0];
+        MString initialUvSet = "UVChannel_1";
+
+        // Set the new UV set name
+        meshFn.renameUVSet(uvSetName, initialUvSet); // Rename the uv set name
+        meshFn.clearUVs(&initialUvSet);
+
+        for (size_t id = 0; id < mesh->uvs.size(); ++id)
+        {
+            // UVs Set {ID}
+            if (!mesh->uvs[id].empty())
+            {
+                // Creates a new UV set name
+                MString uvSet = "UVChannel_";
+                uvSet += std::to_string(id + 1).c_str();
+
+                if (uvSet != initialUvSet)
+                {
+                    meshFn.createUVSet(uvSet);
+                }
+
+                meshFn.setCurrentUVSetName(uvSet);
+
+                MStatus uvsetstatus = meshFn.setUVs(uArray[id], vArray[id], &uvSet);
+                MStatus uvassigntatus = meshFn.assignUVs(uvCounts, uvIds);
+            }
+        }
+
+        // Reset UV Layout selection
+        meshFn.setCurrentUVSetName(initialUvSet);
+
+        meshFn.updateSurface();
+        //meshFn.setObject(obj);
+        depNodeFn.setObject(obj);
+
+        MString updated_name = updateNodeName(Name).c_str();
+
+        depNodeFn.setName(updated_name);
+
+        return obj;
+    }
+
     static MStatus ExecuteCommand(MString mCommand)
     {
         if (!MGlobal::executeCommand(mCommand, false))
@@ -325,7 +462,7 @@ public:
         return MGlobal::deleteNode(obj);
     }
 
-    static MStatus setNodeTransformation(MObject& locatorObj, DirectX::XMMATRIX xmMatrix)
+    static MStatus setNodeTransformation(MObject& locatorObj, const DirectX::XMMATRIX& xmMatrix)
     {
         MStatus status;
         MFnDagNode fnDagNode;
