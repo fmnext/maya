@@ -1408,23 +1408,22 @@ FMMainWindow::FMMainWindow(QWidget* parent)
     ui->treeWidget->setAlternatingRowColors(true);
     ui->treeWidget->setMouseTracking(false);
 
-    FMFileDownloader* m_pVerCtrl = new FMFileDownloader(QUrl("https://forza.quixel.net/api/maya"), this);
+    FMFileDownloader* m_pVerCtrl = new FMFileDownloader(QUrl("https://api.fmnext.dev/repos/maya/releases/latest"), this);
 
     QObject::connect(m_pVerCtrl, &FMFileDownloader::downloaded, this, [=]()
-    {
+        {
             QByteArray byte_data = m_pVerCtrl->downloadedData();
 
             if (!byte_data.isEmpty())
             {
                 QJsonObject json_obj = QJsonDocument::fromJson(byte_data).object();
-                QString json_version = json_obj["version"].toString();
-                int json_ordinal = json_obj["ordinal"].toInt();
+                QString json_version = json_obj["tag_name"].toString();
+                int json_ordinal = QVariant::fromValue(QString(json_version).replace(QRegularExpression("[s.a-zA-Z]+", QRegularExpression::CaseInsensitiveOption), "")).toInt();
 
-                //if (root_items[8]->text(2).compare(json_version, Qt::CaseInsensitive) && !json_version.isEmpty())
                 if (json_ordinal > FT_MAYA_VERSION_NUMBER)
                 {
                     QLabel* updateVersionLabel = new QLabel(this);
-                    updateVersionLabel->setText(QString("%1 - <a href=\"https://forza.quixel.net\" style=\"font-size: 9pt; text-decoration:none; color: #93c5fd;\">Update to %2 is now available.</a>").arg(root_items[8]->text(2), json_version));
+                    updateVersionLabel->setText(QString("%1 - <a href=\"https://forzatech.dev\" style=\"font-size: 9pt; text-decoration:none; color: #93c5fd;\">Update to %2 is now available.</a>").arg(root_items[8]->text(2), json_version));
                     updateVersionLabel->setFont(QFont("Segoe UI", 9, QFont::Normal));
                     updateVersionLabel->setTextInteractionFlags(Qt::TextBrowserInteraction);
                     updateVersionLabel->setOpenExternalLinks(true);
@@ -1433,11 +1432,8 @@ FMMainWindow::FMMainWindow(QWidget* parent)
                     ui->treeWidget->setItemWidget(root_items[8], 2, updateVersionLabel);
                     root_items[8]->setText(2, "");
                     root_items[8]->setIcon(0, QPixmap(":/icons/svg/warning.svg"));
-
-                    //root_items[8]->setText(2, QString("%1 (Update to %2 is now available)").arg(root_items[8]->text(2), json_version));
                 }
             }
-
         });
 
     getPreferences();
