@@ -1408,23 +1408,22 @@ FMMainWindow::FMMainWindow(QWidget* parent)
     ui->treeWidget->setAlternatingRowColors(true);
     ui->treeWidget->setMouseTracking(false);
 
-    FMFileDownloader* m_pVerCtrl = new FMFileDownloader(QUrl("https://forza.quixel.net/api/maya"), this);
+    FMFileDownloader* m_pVerCtrl = new FMFileDownloader(QUrl("https://api.fmnext.dev/repos/maya/releases/latest"), this);
 
     QObject::connect(m_pVerCtrl, &FMFileDownloader::downloaded, this, [=]()
-    {
+        {
             QByteArray byte_data = m_pVerCtrl->downloadedData();
 
             if (!byte_data.isEmpty())
             {
                 QJsonObject json_obj = QJsonDocument::fromJson(byte_data).object();
-                QString json_version = json_obj["version"].toString();
-                int json_ordinal = json_obj["ordinal"].toInt();
+                QString json_version = json_obj["tag_name"].toString();
+                int json_ordinal = QVariant::fromValue(QString(json_version).replace(QRegularExpression("[\\s.a-zA-Z]+", QRegularExpression::CaseInsensitiveOption), "")).toInt();
 
-                //if (root_items[8]->text(2).compare(json_version, Qt::CaseInsensitive) && !json_version.isEmpty())
                 if (json_ordinal > FT_MAYA_VERSION_NUMBER)
                 {
                     QLabel* updateVersionLabel = new QLabel(this);
-                    updateVersionLabel->setText(QString("%1 - <a href=\"https://forza.quixel.net\" style=\"font-size: 9pt; text-decoration:none; color: #93c5fd;\">Update to %2 is now available.</a>").arg(root_items[8]->text(2), json_version));
+                    updateVersionLabel->setText(QString("%1 - <a href=\"https://forzatech.dev\" style=\"font-size: 9pt; text-decoration:none; color: #93c5fd;\">Update to %2 is now available.</a>").arg(root_items[8]->text(2), json_version));
                     updateVersionLabel->setFont(QFont("Segoe UI", 9, QFont::Normal));
                     updateVersionLabel->setTextInteractionFlags(Qt::TextBrowserInteraction);
                     updateVersionLabel->setOpenExternalLinks(true);
@@ -1433,11 +1432,8 @@ FMMainWindow::FMMainWindow(QWidget* parent)
                     ui->treeWidget->setItemWidget(root_items[8], 2, updateVersionLabel);
                     root_items[8]->setText(2, "");
                     root_items[8]->setIcon(0, QPixmap(":/icons/svg/warning.svg"));
-
-                    //root_items[8]->setText(2, QString("%1 (Update to %2 is now available)").arg(root_items[8]->text(2), json_version));
                 }
             }
-
         });
 
     getPreferences();
@@ -1671,6 +1667,8 @@ void FMMainWindow::setModel(const std::string& path)
                     }
                 }
             }
+
+            tires_container.release();
         }
 
         // media/_library and media/cars/_library
@@ -1752,19 +1750,16 @@ void FMMainWindow::setModel(const std::string& path)
         {
             if (!m_records->Thumbnail.empty())
             {
-                for (auto& [name, path] : m_game->GetThumbnail(m_records->Thumbnail))
+                for (const auto& path : m_game->GetResourceContainer(m_records->Thumbnail))
                 {
-                    std::smatch match_big{};
-                    std::regex_search(name, match_big, std::regex("_Big.swatchbin", std::regex::icase));
-
-                    if (std::filesystem::exists(path) && !match_big.empty())
+                    for (const auto& name : fmnext::GameResolver::GetThumbnailNames(m_records->Thumbnail))
                     {
                         auto thumbnail_container = fmnext::ContainerReader(path.string());
 
                         std::vector<char> thumb_blob{};
                         if (thumbnail_container.findName(name, thumb_blob)) {
                             auto thumb = fmnext::BundleReader(thumb_blob);
-                            if (thumb.Init())
+                            if (thumb.Init() && m_thumbnail == nullptr)
                             {
                                 m_thumbnail = std::make_unique<fmnext::BundleReader::BundleData>(thumb.bundle);
 
@@ -1782,37 +1777,9 @@ void FMMainWindow::setModel(const std::string& path)
                             }
                         }
 
-                        continue;
-                    }
-
-                    if (std::filesystem::exists(path))
-                    {
-                        auto thumbnail_container = fmnext::ContainerReader(path.string());
-
-                        std::vector<char> thumb_blob{};
-                        if (thumbnail_container.findName(name, thumb_blob)) {
-                            auto thumb = fmnext::BundleReader(thumb_blob);
-                            if (thumb.Init())
-                            {
-                                m_thumbnail = std::make_unique<fmnext::BundleReader::BundleData>(thumb.bundle);
-
-                                auto texture_resolver = fmnext::TextureResolver(thumb.bundle);
-                                const DirectX::Blob& blob_png = texture_resolver.SaveToPNGMemory();
-
-                                QPixmap default_thumb;
-                                default_thumb.loadFromData(static_cast<unsigned char*>(blob_png.GetBufferPointer()), static_cast<uint32_t>(blob_png.GetBufferSize()));
-
-                                QPixmap scaled_thumb = default_thumb.scaled(QSize(FMQtWindow::dpiScale(200), FMQtWindow::dpiScale(200)), Qt::KeepAspectRatio, Qt::SmoothTransformation);
-
-                                scene_items[1]->setText(1, "Image");
-                                scene_items[1]->setData(2, Qt::DecorationRole, scaled_thumb);
-                                scene_items[1]->setToolTip(2, m_records->Thumbnail.c_str());
-                            }
-                        }
+                        thumbnail_container.release();
                     }
                 }
-
-                /**/
             }
 
             root_items[6]->setText(2, "Available");
@@ -2249,29 +2216,27 @@ void FMMainWindow::setModel(const std::string& path)
                         position += DCCManager::GetContainerDirection(model->bone_name);
 
                         //{ "tireL", "tireL", "tireL", "tireL" };     =  previous
-                        //{ "tireL", "tireL", "tireR", "tireR" };     =  current
-                        //{ "tireLF", "tireLR", "tireRF", "tireRR" }; =  supposed/current
+                        //{ "tireL", "tireL", "tireR", "tireR" };     =  previous/current
+                        //{ "tireLF", "tireLR", "tireRF", "tireRR" }; =  current/fixed
 
                         for (const auto& [key, data] : m_tires)
                         {
                             std::smatch match_tire{};
                             std::string regex = (m_tires.size() <= 2) ? std::string(position.begin(), position.end() - 1) : position;
 
-                            std::regex_search(key, match_tire, std::regex(regex, std::regex::icase));
+                            QString scheme = QString("%0/%1/%2").arg(upgrade_item->data(0, Qt::DisplayRole).toString(), root_item->data(0, Qt::DisplayRole).toString(), tire_model->type.c_str());
 
-                            if (!match_tire.empty())
+                            auto materials = HandleShaders(tire_model, data, scheme);
+
+                            switch (static_cast<uint32_t>(m_tires.size()))
                             {
-                                std::string tire_path = "game:\\media\\cars\\_library\\scene\\tires\\";
-                                tire_path += m_records->TireModelName;
-                                tire_path += std::string(std::string("\\") + position + std::string(key.begin() + regex.size(), key.end()));
+                            case 0x01:
+                            {
+                                tire_model->path = "game:\\media\\cars\\_library\\scene\\tires\\";
+                                tire_model->path += m_records->TireModelName;
+                                tire_model->path += std::string(std::string("\\") + position + std::string(key.begin() + regex.size(), key.end()));
 
-                                tire_model->path = tire_path;
-
-                                QString scheme = QString("%0/%1/%2").arg(upgrade_item->data(0, Qt::DisplayRole).toString(), root_item->data(0, Qt::DisplayRole).toString(), tire_model->type.c_str());
-
-                                auto materials = HandleShaders(tire_model, data, scheme);
-
-                                if (std::find_if(list_items.cbegin(), list_items.cend(), [&](const auto& pitem) { return pitem.model->path == tire_path; }) == list_items.cend())
+                                if (std::find_if(list_items.begin(), list_items.end(), [&](const auto& pitem) { return pitem.model->path == tire_model->path; }) == std::end(list_items))
                                 {
                                     item->setText(2, tire_model->path.c_str());
                                     item->setToolTip(0, tire_model->path.c_str());
@@ -2279,14 +2244,50 @@ void FMMainWindow::setModel(const std::string& path)
 
                                     upgrade_tire->addChild(item);
 
+                                    auto materials = HandleShaders(tire_model, data, scheme);
+
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
                                     list_items.emplace_back(item, 8, tire_model, data, materials, scheme.toStdString());
 #else
                                     list_items.push_back({ item, 8, tire_model, data, materials, scheme.toStdString() });
 #endif
                                 }
+                                break;
+                            }
+                            case 0x02:
+                            case 0x04:
+                            {
+                                if (std::regex_search(key, match_tire, std::regex(regex, std::regex::icase)))
+                                {
+                                    tire_model->path = "game:\\media\\cars\\_library\\scene\\tires\\";
+                                    tire_model->path += m_records->TireModelName;
+                                    tire_model->path += std::string(std::string("\\") + position + std::string(key.begin() + regex.size(), key.end()));
+
+                                    if (std::find_if(list_items.begin(), list_items.end(), [&](const auto& pitem) { return pitem.model->path == tire_model->path; }) == std::end(list_items))
+                                    {
+                                        item->setText(2, tire_model->path.c_str());
+                                        item->setToolTip(0, tire_model->path.c_str());
+                                        item->setToolTip(2, tire_model->path.c_str());
+
+                                        upgrade_tire->addChild(item);
+
+                                        auto materials = HandleShaders(tire_model, data, scheme);
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+                                        list_items.emplace_back(item, 8, tire_model, data, materials, scheme.toStdString());
+#else
+                                        list_items.push_back({ item, 8, tire_model, data, materials, scheme.toStdString() });
+#endif
+                                    }
+                                }
+                                break;
+                            }
+                            default:
+                                printf("Warning: Unsupported number of tire entries found: 0x%02X \n", static_cast<uint32_t>(m_tires.size()));
+                                break;
                             }
                         }
+
                     }
 
                 }
@@ -3159,6 +3160,13 @@ void FMMainWindow::exportMaterialData(int bundle_index, const QString& path)
     QJsonArray document_entries{};
     QJsonObject root_json_object{};
 
+    QJsonObject metadata_object;
+    metadata_object.insert("version", 1);
+    metadata_object.insert("type", "MaterialData");
+    metadata_object.insert("generator", "ForzaTech Importer for Autodesk Maya");
+
+    root_json_object.insert("metadata", metadata_object);
+
     for (auto it = list_items[bundle_index].bundle->Meshes.begin(); it != list_items[bundle_index].bundle->Meshes.end(); ++it)
     {
         auto materials = list_items[bundle_index];
@@ -3232,6 +3240,13 @@ void FMMainWindow::exportManufacturerColors(const QString& path)
     QJsonArray document_entries{};
     QJsonObject root_json_object{};
 
+    QJsonObject metadata_object;
+    metadata_object.insert("version", 1);
+    metadata_object.insert("type", "ManufacturerColors");
+    metadata_object.insert("generator", "ForzaTech Importer for Autodesk Maya");
+
+    root_json_object.insert("metadata", metadata_object);
+
     if (m_colors != nullptr) {
 
         for (auto it = m_colors->ManufacturerColors.begin(); it != m_colors->ManufacturerColors.end(); ++it)
@@ -3249,8 +3264,24 @@ void FMMainWindow::exportManufacturerColors(const QString& path)
 
                 QJsonObject color_object;
 
-                color_object.insert("Path", QString(colors->path.c_str()));
-                color_object.insert("Index_Mask", QString("%0").arg(colors->material_index_mask.value()));
+                color_object.insert("Index_Mask", QJsonValue::fromVariant(QVariant(colors->material_index_mask.value())));
+
+                if (colors->masks.has_value())
+                {
+                    QJsonArray mask_array{};
+
+                    for (const auto& mask : colors->masks.value())
+                    {
+                        mask_array.push_back(QString(mask.c_str()));
+                    }
+
+                    color_object.insert("Masks", mask_array);
+                }
+                else
+                {
+                    color_object.insert("Masks", QJsonValue(QJsonValue::Null));
+                }
+
                 color_object.insert("Path", QString(colors->path.c_str()));
                 color_object.insert("Preview_Color", QJsonArray({ colors->preview_color.x, colors->preview_color.y, colors->preview_color.z }));
 
@@ -3270,7 +3301,7 @@ void FMMainWindow::exportManufacturerColors(const QString& path)
                     }
                 }
 
-                array.insert(idx, color_object);
+                array.push_back(color_object);
             }
 
             json_object.insert("Data", array);
@@ -3312,7 +3343,7 @@ QJsonArray FMMainWindow::getShaderParametersArray(std::shared_ptr<fmnext::Bundle
             object.insert(QString("Type"), QString("Vector"));
             object.insert(QString("Data"), jsonArray);
 
-            array.insert(itx, object);
+            array.push_back(object);
 
             break;
         }
@@ -3330,7 +3361,7 @@ QJsonArray FMMainWindow::getShaderParametersArray(std::shared_ptr<fmnext::Bundle
             object.insert(QString("Type"), QString("Color"));
             object.insert(QString("Data"), jsonArray);
 
-            array.insert(itx, object);
+            array.push_back(object);
 
             break;
         }
@@ -3346,7 +3377,7 @@ QJsonArray FMMainWindow::getShaderParametersArray(std::shared_ptr<fmnext::Bundle
             object.insert(QString("Type"), QString("Float"));
             object.insert(QString("Data"), result);
 
-            array.insert(itx, object);
+            array.push_back(object);
 
             break;
         }
@@ -3364,7 +3395,7 @@ QJsonArray FMMainWindow::getShaderParametersArray(std::shared_ptr<fmnext::Bundle
             object.insert(QString("Type"), QString("Bool"));
             object.insert(QString("Data"), jsonValue);
 
-            array.insert(itx, object);
+            array.push_back(object);
 
             break;
         }
@@ -3380,7 +3411,7 @@ QJsonArray FMMainWindow::getShaderParametersArray(std::shared_ptr<fmnext::Bundle
             object.insert(QString("Type"), QString("Int"));
             object.insert(QString("Data"), result);
 
-            array.insert(itx, object);
+            array.push_back(object);
 
             break;
         }
@@ -3395,7 +3426,7 @@ QJsonArray FMMainWindow::getShaderParametersArray(std::shared_ptr<fmnext::Bundle
             object.insert(QString("Type"), QString("Swizzle"));
             object.insert(QString("Data"), QString("No suitable data parser defined."));
 
-            array.insert(itx, object);
+            array.push_back(object);
 
             break;
         }
@@ -3410,7 +3441,7 @@ QJsonArray FMMainWindow::getShaderParametersArray(std::shared_ptr<fmnext::Bundle
             object.insert(QString("Type"), QString("Texture2D"));
             object.insert(QString("Data"), QString::fromStdString(result));
 
-            array.insert(itx, object);
+            array.push_back(object);
 
             break;
         }
@@ -3428,7 +3459,7 @@ QJsonArray FMMainWindow::getShaderParametersArray(std::shared_ptr<fmnext::Bundle
             object.insert(QString("Type"), QString("Vector2"));
             object.insert(QString("Data"), jsonArray);
 
-            array.insert(itx, object);
+            array.push_back(object);
 
             break;
         }
@@ -3506,7 +3537,7 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
             lodFnDagNode.setName(lod_group_name.c_str());
 
 
-            for (auto& data : list_items)
+            for (const auto& data : list_items)
             {
                 if (data.item->parent()->data(0, Qt::DisplayRole).toInt() == upgrade_level->itemData(upgrade_level->currentIndex(), Qt::UserRole).toInt() ||
                     data.item->parent()->text(0).isEmpty() == true)
@@ -3704,7 +3735,7 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
                                     fnDagNode.setName(wheel_name.c_str());
                                 }
                                 /*
-                                for (auto& mesh : resolver.meshes)
+                                for (const auto& mesh : resolver.meshes)
                                 {
                                     MObject obj = MObject::kNullObj;
                                     DCCManager::createMesh(mesh.vertices, mesh.indices, mesh.normals, mesh.uvs, obj, mesh.name);
@@ -3712,12 +3743,12 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
                                     fnDagNode.addChild(obj);
                                 }
                                 */
-                                for (auto& mesh : resolver.GetMeshes())
+                                for (const auto& mesh : resolver.GetMeshes())
                                 {
                                     MObject obj = MObject::kNullObj;
 
                                     MObject material_obj = MObject::kNullObj;
-                                    std::string mesh_name{};
+                                    std::string mesh_name(mesh.name);
 
                                     auto material = std::find_if(data.bundle->MaterialInstanceBundles.begin(), data.bundle->MaterialInstanceBundles.end(), [&](auto& mtl) {
                                         return std::any_cast<int32_t>(mtl.metadata["Id"]) == mesh.material_index;
@@ -3725,7 +3756,6 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
 
                                     if (material != std::end(data.bundle->MaterialInstanceBundles))
                                     {
-                                        mesh_name += mesh.name;
                                         mesh_name += "_";
                                         mesh_name += std::any_cast<std::string>(material->metadata["Name"]);
                                     }
@@ -3737,7 +3767,7 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
                                         material_obj = DCCManager::createMaterialfromMemory(std::any_cast<std::string>(material->metadata["Name"]), material_data.instace);
                                     }
 
-                                    obj = DCCManager::createMesh(mesh.vertices, mesh.indices, mesh.normals, mesh.uvs, mesh_name, geometry_type->currentIndex());
+                                    obj = DCCManager::createMesh(&mesh, mesh_name, geometry_type->currentIndex());
                                     DCCManager::setNodeTransformation(obj, mesh.matrix);
 
                                     if (material_obj != MObject::kNullObj)
@@ -3774,12 +3804,12 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
                                 fnDagNode.setName(wheel_name.c_str());
                             }
 
-                            for (auto& mesh : resolver.GetMeshes())
+                            for (const auto& mesh : resolver.GetMeshes())
                             {
                                 MObject obj = MObject::kNullObj;
 
                                 MObject material_obj = MObject::kNullObj;
-                                std::string mesh_name{};
+                                std::string mesh_name(mesh.name);
 
                                 auto material = std::find_if(data.bundle->MaterialInstanceBundles.begin(), data.bundle->MaterialInstanceBundles.end(), [&](auto& mtl) {
                                     return std::any_cast<int32_t>(mtl.metadata["Id"]) == mesh.material_index;
@@ -3787,7 +3817,6 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
 
                                 if (material != std::end(data.bundle->MaterialInstanceBundles))
                                 {
-                                    mesh_name += mesh.name;
                                     mesh_name += "_";
                                     mesh_name += std::any_cast<std::string>(material->metadata["Name"]);
                                 }
@@ -3800,7 +3829,7 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
                                     material_obj = DCCManager::createMaterialfromMemory(std::any_cast<std::string>(material->metadata["Name"]), material_data.instace);
                                 }
 
-                                obj = DCCManager::createMesh(mesh.vertices, mesh.indices, mesh.normals, mesh.uvs, mesh_name, geometry_type->currentIndex());
+                                obj = DCCManager::createMesh(&mesh, mesh_name, geometry_type->currentIndex());
                                 DCCManager::setNodeTransformation(obj, mesh.matrix);
 
                                 if (material_obj != MObject::kNullObj)
@@ -3846,12 +3875,12 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
                             }
 
 
-                            for (auto& mesh : resolver.GetMeshes())
+                            for (const auto& mesh : resolver.GetMeshes())
                             {
                                 MObject obj = MObject::kNullObj;
 
                                 MObject material_obj = MObject::kNullObj;
-                                std::string mesh_name{};
+                                std::string mesh_name(mesh.name);
 
                                 auto material = std::find_if(data.bundle->MaterialInstanceBundles.begin(), data.bundle->MaterialInstanceBundles.end(), [&](auto& mtl) {
                                     return std::any_cast<int32_t>(mtl.metadata["Id"]) == mesh.material_index;
@@ -3859,7 +3888,6 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
 
                                 if (material != std::end(data.bundle->MaterialInstanceBundles))
                                 {
-                                    mesh_name += mesh.name;
                                     mesh_name += "_";
                                     mesh_name += std::any_cast<std::string>(material->metadata["Name"]);
                                 }
@@ -3872,7 +3900,7 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
                                     material_obj = DCCManager::createMaterialfromMemory(std::any_cast<std::string>(material->metadata["Name"]), material_data.instace);
                                 }
 
-                                obj = DCCManager::createMesh(mesh.vertices, mesh.indices, mesh.normals, mesh.uvs, mesh_name, geometry_type->currentIndex());
+                                obj = DCCManager::createMesh(&mesh, mesh_name, geometry_type->currentIndex());
                                 DCCManager::setNodeTransformation(obj, mesh.matrix);
 
                                 if (material_obj != MObject::kNullObj)
@@ -3908,12 +3936,12 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
 
                         auto resolver = fmnext::MeshResolver(data.bundle, current_lod->currentIndex(), static_cast<fmnext::GeometryType>(geometry_type->currentIndex()));
 
-                        for (auto& mesh : resolver.GetMeshes())
+                        for (const auto& mesh : resolver.GetMeshes())
                         {
                             MObject obj = MObject::kNullObj;
 
                             MObject material_obj = MObject::kNullObj;
-                            std::string mesh_name{};
+                            std::string mesh_name(mesh.name);
 
                             auto material = std::find_if(data.bundle->MaterialInstanceBundles.begin(), data.bundle->MaterialInstanceBundles.end(), [&](auto& mtl) {
                                 return std::any_cast<int32_t>(mtl.metadata["Id"]) == mesh.material_index;
@@ -3921,7 +3949,6 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
 
                             if (material != std::end(data.bundle->MaterialInstanceBundles))
                             {
-                                mesh_name += mesh.name;
                                 mesh_name += "_";
                                 mesh_name += std::any_cast<std::string>(material->metadata["Name"]);
                             }
@@ -3934,7 +3961,7 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
                                 material_obj = DCCManager::createMaterialfromMemory(std::any_cast<std::string>(material->metadata["Name"]), material_data.instace);
                             }
 
-                            obj = DCCManager::createMesh(mesh.vertices, mesh.indices, mesh.normals, mesh.uvs, mesh_name, geometry_type->currentIndex());
+                            obj = DCCManager::createMesh(&mesh, mesh_name, geometry_type->currentIndex());
                             DCCManager::setNodeTransformation(obj, mesh.matrix);
 
                             if (material_obj != MObject::kNullObj)
@@ -3974,12 +4001,12 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
 
                         auto resolver = fmnext::MeshResolver(data.bundle, current_lod->currentIndex(), static_cast<fmnext::GeometryType>(geometry_type->currentIndex()));
 
-                        for (auto& mesh : resolver.GetMeshes())
+                        for (const auto& mesh : resolver.GetMeshes())
                         {
                             MObject obj = MObject::kNullObj;
 
                             MObject material_obj = MObject::kNullObj;
-                            std::string mesh_name{};
+                            std::string mesh_name(mesh.name);
 
                             auto material = std::find_if(data.bundle->MaterialInstanceBundles.begin(), data.bundle->MaterialInstanceBundles.end(), [&](auto& mtl) {
                                 return std::any_cast<int32_t>(mtl.metadata["Id"]) == mesh.material_index;
@@ -3987,7 +4014,6 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
 
                             if (material != std::end(data.bundle->MaterialInstanceBundles))
                             {
-                                mesh_name += mesh.name;
                                 mesh_name += "_";
                                 mesh_name += std::any_cast<std::string>(material->metadata["Name"]);
                             }
@@ -4000,7 +4026,7 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
                                 material_obj = DCCManager::createMaterialfromMemory(std::any_cast<std::string>(material->metadata["Name"]), material_data.instace);
                             }
 
-                            obj = DCCManager::createMesh(mesh.vertices, mesh.indices, mesh.normals, mesh.uvs, mesh_name, geometry_type->currentIndex());
+                            obj = DCCManager::createMesh(&mesh, mesh_name, geometry_type->currentIndex());
                             DCCManager::setNodeTransformation(obj, mesh.matrix);
 
                             if (material_obj != MObject::kNullObj)
@@ -4070,12 +4096,12 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
 
                         auto resolver = fmnext::MeshResolver(data.bundle, current_lod->currentIndex(), static_cast<fmnext::GeometryType>(geometry_type->currentIndex()));
 
-                        for (auto& mesh : resolver.GetMeshes())
+                        for (const auto& mesh : resolver.GetMeshes())
                         {
                             MObject obj = MObject::kNullObj;
 
                             MObject material_obj = MObject::kNullObj;
-                            std::string mesh_name{};
+                            std::string mesh_name(mesh.name);
 
                             auto material = std::find_if(data.bundle->MaterialInstanceBundles.begin(), data.bundle->MaterialInstanceBundles.end(), [&](auto& mtl) {
                                 return std::any_cast<int32_t>(mtl.metadata["Id"]) == mesh.material_index;
@@ -4083,7 +4109,6 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
 
                             if (material != std::end(data.bundle->MaterialInstanceBundles))
                             {
-                                mesh_name += mesh.name;
                                 mesh_name += "_";
                                 mesh_name += std::any_cast<std::string>(material->metadata["Name"]);
                             }
@@ -4097,7 +4122,7 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
                             }
 
 
-                            obj = DCCManager::createMesh(mesh.vertices, mesh.indices, mesh.normals, mesh.uvs, mesh_name, geometry_type->currentIndex());
+                            obj = DCCManager::createMesh(&mesh, mesh_name, geometry_type->currentIndex());
                             DCCManager::setNodeTransformation(obj, mesh.matrix);
 
                             if (material_obj != MObject::kNullObj)
@@ -4140,12 +4165,12 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
 
 
 
-                        for (auto& mesh : resolver.GetMeshes())
+                        for (const auto& mesh : resolver.GetMeshes())
                         {
                             MObject obj = MObject::kNullObj;
 
                             MObject material_obj = MObject::kNullObj;
-                            std::string mesh_name{};
+                            std::string mesh_name(mesh.name);
                             std::string material_instance_name{};
 
                             auto material = std::find_if(data.bundle->MaterialInstanceBundles.begin(), data.bundle->MaterialInstanceBundles.end(), [&](auto& mtl) {
@@ -4154,7 +4179,6 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
 
                             if (material != std::end(data.bundle->MaterialInstanceBundles))
                             {
-                                mesh_name += mesh.name;
                                 mesh_name += "_";
                                 mesh_name += std::any_cast<std::string>(material->metadata["Name"]);
                             }
@@ -4215,7 +4239,7 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
                                 }
                             }
 
-                            obj = DCCManager::createMesh(mesh.vertices, mesh.indices, mesh.normals, mesh.uvs, mesh_name, geometry_type->currentIndex());
+                            obj = DCCManager::createMesh(&mesh, mesh_name, geometry_type->currentIndex());
                             DCCManager::setNodeTransformation(obj, mesh.matrix);
 
                             if (material_obj != MObject::kNullObj)
@@ -4360,7 +4384,7 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
                     MObject obj = MObject::kNullObj;
 
                     MObject material_obj = MObject::kNullObj;
-                    std::string mesh_name;
+                    std::string mesh_name(mesh.name);
 
                     auto material = std::find_if(data.bundle->MaterialInstanceBundles.begin(), data.bundle->MaterialInstanceBundles.end(), [&](auto& mtl) {
                         return std::any_cast<int32_t>(mtl.metadata["Id"]) == mesh.material_index;
@@ -4368,7 +4392,6 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
 
                     if (material != std::end(data.bundle->MaterialInstanceBundles))
                     {
-                        mesh_name += mesh.name;
                         mesh_name += "_";
                         mesh_name += std::any_cast<std::string>(material->metadata["Name"]);
                     }
@@ -4380,7 +4403,7 @@ void FMMainWindow::Initialize(std::shared_ptr<fmnext::DataBaseRecords> p_records
                         material_obj = DCCManager::createMaterialfromMemory(std::any_cast<std::string>(material->metadata["Name"]), material_data.instace);
                     }
 
-                    obj = DCCManager::createMesh(mesh.vertices, mesh.indices, mesh.normals, mesh.uvs, mesh_name, geometry_type->currentIndex());
+                    obj = DCCManager::createMesh(&mesh, mesh_name, geometry_type->currentIndex());
                     DCCManager::setNodeTransformation(obj, mesh.matrix);
 
                     if (material_obj != MObject::kNullObj)
